@@ -1,0 +1,30 @@
+# dynamic.yaml
+
+http:
+  routers:
+    my-router:
+      #rule: "Host(`example.com`)"
+      rule: "Host(`localhost`)"
+      entryPoints:
+        - web
+      middlewares:
+        - set-host-header  # Apply the middleware to modify the Host header
+        - cluster-ratelimit
+      service: elanprod
+
+  middlewares:
+    set-host-header:
+      headers:
+        customRequestHeaders:
+          Host: "elanprod.com"  # Force the Host header to a specific value
+    cluster-ratelimit:
+      plugin:
+        cluster-ratelimit:
+          average: 100
+          burst: 200
+
+  services:
+    elanprod:
+      loadBalancer:
+        servers:
+          - url: "https://elanprod.com"
