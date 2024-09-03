@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +14,14 @@ import (
 const MAX_ACTIVE = 5
 const DIAL_TIMEOUT = 3 * time.Second
 
-type RedisClient struct {
+type Client interface {
+	Close()
+	Ping() error
+	Del(key string) error
+	NewScript(script string) Script
+}
+
+type ClientImpl struct {
 	mu          sync.Mutex
 	conns       chan net.Conn
 	addr        string
@@ -24,7 +32,7 @@ type RedisClient struct {
 }
 
 // NewConnPool initializes a new connection pool
-func NewRedisClient(addr string, db uint, authpassword string) (*RedisClient, error) {
+func NewClient(addr string, db uint, authpassword string) (Client, error) {
 	maxActive := MAX_ACTIVE
 	dialTimeout := DIAL_TIMEOUT
 
@@ -32,7 +40,7 @@ func NewRedisClient(addr string, db uint, authpassword string) (*RedisClient, er
 		return nil, errors.New("maxActive must be greater than 0")
 	}
 
-	r := &RedisClient{
+	r := &ClientImpl{
 		conns:       make(chan net.Conn, maxActive),
 		addr:        addr,
 		maxActive:   maxActive,
@@ -52,7 +60,7 @@ func NewRedisClient(addr string, db uint, authpassword string) (*RedisClient, er
 	return r, nil
 }
 
-func (r *RedisClient) newConn() (net.Conn, error) {
+func (r *ClientImpl) newConn() (net.Conn, error) {
 	conn, err := net.DialTimeout("tcp", r.addr, r.dialTimeout)
 	if err != nil {
 		return nil, err
@@ -77,7 +85,7 @@ func (r *RedisClient) newConn() (net.Conn, error) {
 }
 
 // Get retrieves a connection from the pool
-func (r *RedisClient) Get() (net.Conn, error) {
+func (r *ClientImpl) get() (net.Conn, error) {
 	select {
 	case conn := <-r.conns:
 		return conn, nil
@@ -87,7 +95,7 @@ func (r *RedisClient) Get() (net.Conn, error) {
 }
 
 // Put returns a connection back to the pool
-func (r *RedisClient) Put(conn net.Conn) error {
+func (r *ClientImpl) put(conn net.Conn) error {
 	if conn == nil {
 		return errors.New("nil connection cannot be added to the pool")
 	}
@@ -106,7 +114,7 @@ func (r *RedisClient) Put(conn net.Conn) error {
 }
 
 // Close closes all the connections in the pool
-func (r *RedisClient) Close() {
+func (r *ClientImpl) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -120,12 +128,14 @@ const (
 	RESP_SUCCESS = iota
 	RESP_FAIL
 	RESP_SUCCESS_WITH_RESULT
+	RESP_SUCCESS_WITH_RESULTS
 	RESP_UNKNOWN
 )
 
 type RedisResult struct {
 	Success int
-	Result  string
+	Result  interface{}
+	Results []interface{}
 }
 
 // sendCommand sends a command to Redis and returns the response.
@@ -147,58 +157,151 @@ func sendCommand(conn net.Conn, args ...string) (*RedisResult, error) {
 	// Read the response
 	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	reader := bufio.NewReader(conn)
-	response, err := reader.ReadString('\n')
-	if err != nil {
-		return nil, fmt.Errorf("error reading response: %w", err)
-	}
 
-	// strip \r\n
-	if response[len(response)-1] == '\n' && response[len(response)-2] == '\r' {
-		response = response[:len(response)-2]
-	}
-
-	if response[0] == '+' {
+	elt, err := readElement(reader)
+	if elt.ElementType == ELEMENT_TRUE {
 		return &RedisResult{
 			Success: RESP_SUCCESS,
-			Result:  response[1:],
+			Result:  elt.Value,
 		}, nil
 	}
-	if response[0] == '-' {
+	if elt.ElementType == ELEMENT_TRUE {
 		return &RedisResult{
 			Success: RESP_FAIL,
-			Result:  response[1:],
+			Result:  elt.Value,
 		}, nil
 	}
 
-	// if the first line start with a '$' we are reading a RESP response
-	// let's find the second line, with the actual content
-	if response[0] == '$' {
-		response, err = reader.ReadString('\n')
-		if err != nil {
-			return nil, fmt.Errorf("error reading response: %w", err)
-		}
-		// strip \r\n
-		if response[len(response)-1] == '\n' && response[len(response)-2] == '\r' {
-			response = response[:len(response)-2]
-		}
+	// simple element
+	if elt.ElementType == ELEMENT_STRING || elt.ElementType == ELEMENT_INT {
 		return &RedisResult{
 			Success: RESP_SUCCESS_WITH_RESULT,
-			Result:  response,
+			Result:  elt.Value,
+		}, nil
+	}
+
+	// array
+	if elt.ElementType == ELEMENT_ARRAY {
+		nb := elt.Value.(int)
+		results := make([]interface{}, 0)
+
+		for i := 0; i < nb; i++ {
+			child, err := readElement(reader)
+			if err != nil {
+				continue
+			}
+			results = append(results, child.Value)
+		}
+
+		return &RedisResult{
+			Success: RESP_SUCCESS_WITH_RESULTS,
+			Results: results,
 		}, nil
 	}
 
 	return &RedisResult{
 		Success: RESP_UNKNOWN,
-		Result:  response,
+		Result:  elt.Value,
 	}, nil
 }
 
-func (r *RedisClient) Ping() error {
-	conn, err := r.Get()
+const (
+	ELEMENT_ARRAY = iota
+	ELEMENT_STRING
+	ELEMENT_INT
+	ELEMENT_TRUE
+	ELEMENT_FALSE
+	ELEMENT_UNKNOWN
+)
+
+type Element struct {
+	ElementType int
+	Value       interface{}
+}
+
+func readElement(reader *bufio.Reader) (*Element, error) {
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("error reading response: %w", err)
+	}
+	if response[len(response)-1] == '\n' && response[len(response)-2] == '\r' {
+		response = response[:len(response)-2]
+	}
+
+	if response[0] == '-' {
+		return &Element{
+			ElementType: ELEMENT_FALSE,
+			Value:       response[1:],
+		}, nil
+	}
+	if response[0] == '-' {
+		return &Element{
+			ElementType: ELEMENT_FALSE,
+			Value:       response[1:],
+		}, nil
+	}
+
+	if response[0] == '+' {
+		return &Element{
+			ElementType: ELEMENT_TRUE,
+			Value:       response[1:],
+		}, nil
+	}
+
+	if response[0] == '$' {
+		// length := 0
+		// if v,err := strconv.Atoi(response[1:]);err==nil {
+		// 	length = v
+		// }
+
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, fmt.Errorf("error reading response: %w", err)
+		}
+		if response[len(response)-1] == '\n' && response[len(response)-2] == '\r' {
+			response = response[:len(response)-2]
+		}
+
+		return &Element{
+			ElementType: ELEMENT_STRING,
+			Value:       response,
+		}, nil
+	}
+
+	if response[0] == '*' {
+		size := 0
+		if s, err := strconv.Atoi(response[1:]); err == nil {
+			size = s
+		}
+		return &Element{
+			ElementType: ELEMENT_ARRAY,
+			Value:       size,
+		}, nil
+
+	}
+	if response[0] == ':' {
+		value := 0
+		if v, err := strconv.Atoi(response[1:]); err == nil {
+			value = v
+		}
+		return &Element{
+			ElementType: ELEMENT_INT,
+			Value:       value,
+		}, nil
+	}
+
+	return &Element{
+		ElementType: ELEMENT_UNKNOWN,
+		Value:       response[1:],
+	}, nil
+}
+
+func (r *ClientImpl) Ping() error {
+	conn, err := r.get()
 	if err != nil {
 		return err
 	}
-	defer r.Put(conn)
+	defer r.put(conn)
 
 	res, err := sendCommand(conn, "PING")
 	if err != nil {
@@ -207,6 +310,24 @@ func (r *RedisClient) Ping() error {
 
 	if res.Success != RESP_SUCCESS && res.Result != "PONG" {
 		return fmt.Errorf("PING result error: %s", res.Result)
+	}
+	return nil
+}
+
+func (r *ClientImpl) Del(key string) error {
+	conn, err := r.get()
+	if err != nil {
+		return err
+	}
+	defer r.put(conn)
+
+	res, err := sendCommand(conn, "DEL", key)
+	if err != nil {
+		return err
+	}
+
+	if res.Success != RESP_SUCCESS && res.Result != "OK" {
+		return fmt.Errorf("DEL result error: %s", res.Result)
 	}
 	return nil
 }

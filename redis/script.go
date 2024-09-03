@@ -5,14 +5,18 @@ import (
 	"strings"
 )
 
-type RedisScript struct {
-	client    *RedisClient
+type Script interface {
+	Run(keys []string, args ...interface{}) (interface{}, error)
+}
+
+type ScriptImpl struct {
+	client    *ClientImpl
 	script    string
 	scriptSha string
 }
 
-func (r *RedisClient) NewScript(script string) *RedisScript {
-	rs := &RedisScript{
+func (r *ClientImpl) NewScript(script string) Script {
+	rs := &ScriptImpl{
 		client:    r,
 		script:    script,
 		scriptSha: "",
@@ -21,12 +25,12 @@ func (r *RedisClient) NewScript(script string) *RedisScript {
 	return rs
 }
 
-func (rs *RedisScript) Run(keys []string, args ...interface{}) (string, error) {
-	conn, err := rs.client.Get()
+func (rs *ScriptImpl) Run(keys []string, args ...interface{}) (interface{}, error) {
+	conn, err := rs.client.get()
 	if err != nil {
 		return "", err
 	}
-	defer rs.client.Put(conn)
+	defer rs.client.put(conn)
 
 	argsarray, err := convertToStringArray(args)
 	if err != nil {
@@ -44,10 +48,16 @@ func (rs *RedisScript) Run(keys []string, args ...interface{}) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if res.Success == RESP_FAIL || strings.HasPrefix(res.Result, "NOSCRIPT") {
-			present = false
-		} else {
+		if res.Success == RESP_SUCCESS_WITH_RESULT {
 			return res.Result, nil
+		}
+		if res.Success == RESP_SUCCESS_WITH_RESULTS {
+			return res.Results, nil
+		}
+		if res.Success == RESP_FAIL || strings.HasPrefix(res.Result.(string), "NOSCRIPT") {
+			return "", fmt.Errorf("not able to run the script: %s", res.Result)
+		} else {
+			return "", fmt.Errorf("not able toget script result: %d", res.Success)
 		}
 	}
 
@@ -58,8 +68,8 @@ func (rs *RedisScript) Run(keys []string, args ...interface{}) (string, error) {
 			return "", err
 		}
 		// sha
-		if len(res.Result) == 40 {
-			rs.scriptSha = res.Result
+		if len(res.Result.(string)) == 40 {
+			rs.scriptSha = res.Result.(string)
 		} else {
 			return "", fmt.Errorf("not able to load script: %s", res.Result)
 		}
@@ -75,10 +85,16 @@ func (rs *RedisScript) Run(keys []string, args ...interface{}) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if res.Success == RESP_FAIL || strings.HasPrefix(res.Result, "NOSCRIPT") {
+	if res.Success == RESP_SUCCESS_WITH_RESULT {
+		return res.Result, nil
+	}
+	if res.Success == RESP_SUCCESS_WITH_RESULTS {
+		return res.Results, nil
+	}
+	if res.Success == RESP_FAIL || strings.HasPrefix(res.Result.(string), "NOSCRIPT") {
 		return "", fmt.Errorf("not able to run the script: %s", res.Result)
 	} else {
-		return res.Result, nil
+		return "", fmt.Errorf("not able toget script result: %d", res.Success)
 	}
 }
 

@@ -2,10 +2,10 @@ package traefik_cluster_ratelimit
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
-	//	redisrate "github.com/go-redis/redis_rate/v10"
-	redis "github.com/go-redis/redis/v8"
+	redis "github.com/nzin/traefik-cluster-ratelimit/redis"
 )
 
 // Config the plugin configuration.
@@ -24,22 +24,25 @@ func CreateConfig() *Config {
 // Demo a Demo plugin.
 type ClusterRateLimit struct {
 	next   http.Handler
-	client *redis.Client
+	client redis.Client
 	name   string
 }
 
 // New created a new Demo plugin.
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     config.RedisAddress,
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+	client, err := redis.NewClient(
+		config.RedisAddress,
+		0,
+		"",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create redis client: %v", err)
+	}
 
-	// _, err := client.Ping(context.Background()).Result()
-	// if err != nil {
-	// 	log.Fatal("Error connecting to Redis:", err)
-	// }
+	err = client.Ping()
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to Redis: %v", err)
+	}
 
 	return &ClusterRateLimit{
 		next:   next,
@@ -50,7 +53,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 
 func (rl *ClusterRateLimit) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// ctx := context.Background()
-	// rr := redisrate.NewLimiter(rl.client)
+	// rr := NewLimiter(rl.client)
 	// res, _ := rr.Allow(ctx, fmt.Sprintf("namespace_", "userName"), redisrate.Limit{
 	// 	Rate:   10,
 	// 	Burst:  10,
