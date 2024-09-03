@@ -9,8 +9,6 @@ import (
 	"github.com/nzin/traefik-cluster-ratelimit/redis"
 )
 
-const redisPrefix = "rate:"
-
 type Limit struct {
 	Rate   int
 	Burst  int
@@ -68,14 +66,16 @@ type Limiter struct {
 	rdb         redis.Client
 	allowN      redis.Script
 	allowAtMost redis.Script
+	redisPrefix string
 }
 
 // NewLimiter returns a new Limiter.
-func NewLimiter(rdb redis.Client) *Limiter {
+func NewLimiter(rdb redis.Client, prefix string) *Limiter {
 	return &Limiter{
 		rdb:         rdb,
 		allowN:      rdb.NewScript(allowNLua),
 		allowAtMost: rdb.NewScript(allowAtMostLua),
+		redisPrefix: "rate_" + prefix,
 	}
 }
 
@@ -92,7 +92,7 @@ func (l Limiter) AllowN(
 	n int,
 ) (*Result, error) {
 	values := []interface{}{limit.Burst, limit.Rate, limit.Period.Seconds(), n}
-	v, err := l.allowN.Run([]string{redisPrefix + key}, values...)
+	v, err := l.allowN.Run([]string{l.redisPrefix + key}, values...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (l Limiter) AllowAtMost(
 	n int,
 ) (*Result, error) {
 	values := []interface{}{limit.Burst, limit.Rate, limit.Period.Seconds(), n}
-	v, err := l.allowAtMost.Run([]string{redisPrefix + key}, values...)
+	v, err := l.allowAtMost.Run([]string{l.redisPrefix + key}, values...)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (l Limiter) AllowAtMost(
 
 // Reset gets a key and reset all limitations and previous usages
 func (l *Limiter) Reset(ctx context.Context, key string) error {
-	return l.rdb.Del(redisPrefix + key)
+	return l.rdb.Del(l.redisPrefix + key)
 }
 
 func dur(f float64) time.Duration {

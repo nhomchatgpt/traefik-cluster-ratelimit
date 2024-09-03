@@ -85,17 +85,18 @@ func (r *ClientImpl) newConn() (net.Conn, error) {
 }
 
 // Get retrieves a connection from the pool
-func (r *ClientImpl) get() (net.Conn, error) {
+func (r *ClientImpl) get() (*net.Conn, error) {
 	select {
 	case conn := <-r.conns:
-		return conn, nil
+		return &conn, nil
 	default:
-		return r.newConn()
+		conn, err := r.newConn()
+		return &conn, err
 	}
 }
 
 // Put returns a connection back to the pool
-func (r *ClientImpl) put(conn net.Conn) error {
+func (r *ClientImpl) put(conn *net.Conn) error {
 	if conn == nil {
 		return errors.New("nil connection cannot be added to the pool")
 	}
@@ -105,11 +106,11 @@ func (r *ClientImpl) put(conn net.Conn) error {
 
 	// If the pool is full, just close the connection
 	if len(r.conns) >= r.maxActive {
-		conn.Close()
+		(*conn).Close()
 		return nil
 	}
 
-	r.conns <- conn
+	r.conns <- (*conn)
 	return nil
 }
 
@@ -159,13 +160,13 @@ func sendCommand(conn net.Conn, args ...string) (*RedisResult, error) {
 	reader := bufio.NewReader(conn)
 
 	elt, err := readElement(reader)
-	if elt.ElementType == ELEMENT_TRUE {
+	if elt.ElementType == ELEMENT_SIMPLE {
 		return &RedisResult{
 			Success: RESP_SUCCESS,
 			Result:  elt.Value,
 		}, nil
 	}
-	if elt.ElementType == ELEMENT_TRUE {
+	if elt.ElementType == ELEMENT_ERROR {
 		return &RedisResult{
 			Success: RESP_FAIL,
 			Result:  elt.Value,
@@ -188,7 +189,7 @@ func sendCommand(conn net.Conn, args ...string) (*RedisResult, error) {
 		for i := 0; i < nb; i++ {
 			child, err := readElement(reader)
 			if err != nil {
-				continue
+				return nil, fmt.Errorf("error reading command result: %w", err)
 			}
 			results = append(results, child.Value)
 		}
@@ -202,15 +203,15 @@ func sendCommand(conn net.Conn, args ...string) (*RedisResult, error) {
 	return &RedisResult{
 		Success: RESP_UNKNOWN,
 		Result:  elt.Value,
-	}, nil
+	}, fmt.Errorf("unknown command result: %w", err)
 }
 
 const (
 	ELEMENT_ARRAY = iota
 	ELEMENT_STRING
 	ELEMENT_INT
-	ELEMENT_TRUE
-	ELEMENT_FALSE
+	ELEMENT_SIMPLE
+	ELEMENT_ERROR
 	ELEMENT_UNKNOWN
 )
 
@@ -230,20 +231,14 @@ func readElement(reader *bufio.Reader) (*Element, error) {
 
 	if response[0] == '-' {
 		return &Element{
-			ElementType: ELEMENT_FALSE,
-			Value:       response[1:],
-		}, nil
-	}
-	if response[0] == '-' {
-		return &Element{
-			ElementType: ELEMENT_FALSE,
+			ElementType: ELEMENT_ERROR,
 			Value:       response[1:],
 		}, nil
 	}
 
 	if response[0] == '+' {
 		return &Element{
-			ElementType: ELEMENT_TRUE,
+			ElementType: ELEMENT_SIMPLE,
 			Value:       response[1:],
 		}, nil
 	}
@@ -303,8 +298,11 @@ func (r *ClientImpl) Ping() error {
 	}
 	defer r.put(conn)
 
-	res, err := sendCommand(conn, "PING")
+	res, err := sendCommand(*conn, "PING")
 	if err != nil {
+		// let's reset the conn
+		(*conn).Close()
+		(*conn) = nil
 		return err
 	}
 
@@ -321,8 +319,11 @@ func (r *ClientImpl) Del(key string) error {
 	}
 	defer r.put(conn)
 
-	res, err := sendCommand(conn, "DEL", key)
+	res, err := sendCommand(*conn, "DEL", key)
 	if err != nil {
+		// let's reset the conn
+		(*conn).Close()
+		(*conn) = nil
 		return err
 	}
 
