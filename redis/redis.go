@@ -31,7 +31,7 @@ type ClientImpl struct {
 	db          int
 }
 
-// NewConnPool initializes a new connection pool
+// NewClient initializes a new redis cleint with connection pool
 func NewClient(addr string, db uint, authpassword string) (Client, error) {
 	maxActive := MAX_ACTIVE
 	dialTimeout := DIAL_TIMEOUT
@@ -51,10 +51,9 @@ func NewClient(addr string, db uint, authpassword string) (Client, error) {
 	// Prepopulate the pool with connections
 	for i := 0; i < maxActive; i++ {
 		conn, err := r.newConn()
-		if err != nil {
-			return nil, err
+		if err == nil {
+			r.conns <- conn
 		}
-		r.conns <- conn
 	}
 
 	return r, nil
@@ -206,6 +205,7 @@ func sendCommand(conn net.Conn, args ...string) (*RedisResult, error) {
 	}, fmt.Errorf("unknown command result: %w", err)
 }
 
+// coming from https://redis.io/docs/latest/develop/reference/protocol-spec/
 const (
 	ELEMENT_ARRAY = iota
 	ELEMENT_STRING
@@ -272,11 +272,10 @@ func readElement(reader *bufio.Reader) (*Element, error) {
 			ElementType: ELEMENT_ARRAY,
 			Value:       size,
 		}, nil
-
 	}
 	if response[0] == ':' {
-		value := 0
-		if v, err := strconv.Atoi(response[1:]); err == nil {
+		value := int64(0)
+		if v, err := strconv.ParseInt(response[1:], 10, 64); err == nil {
 			value = v
 		}
 		return &Element{

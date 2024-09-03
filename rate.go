@@ -9,6 +9,8 @@ import (
 	"github.com/nzin/traefik-cluster-ratelimit/redis"
 )
 
+// coming from github.com/go-redis/redis_rate/v10
+
 type Limit struct {
 	Rate   int
 	Burst  int
@@ -73,20 +75,19 @@ type Limiter struct {
 func NewLimiter(rdb redis.Client, prefix string) *Limiter {
 	return &Limiter{
 		rdb:         rdb,
-		allowN:      rdb.NewScript(allowNLua),
-		allowAtMost: rdb.NewScript(allowAtMostLua),
+		allowN:      redis.NewScriptWithBreaker(rdb.NewScript(allowNLua)),
+		allowAtMost: redis.NewScriptWithBreaker(rdb.NewScript(allowAtMostLua)),
 		redisPrefix: "rate_" + prefix,
 	}
 }
 
 // Allow is a shortcut for AllowN(ctx, key, limit, 1).
-func (l Limiter) Allow(ctx context.Context, key string, limit Limit) (*Result, error) {
-	return l.AllowN(ctx, key, limit, 1)
+func (l Limiter) Allow(key string, limit Limit) (*Result, error) {
+	return l.AllowN(key, limit, 1)
 }
 
 // AllowN reports whether n events may happen at time now.
 func (l Limiter) AllowN(
-	ctx context.Context,
 	key string,
 	limit Limit,
 	n int,
