@@ -1,6 +1,6 @@
 module github.com/nzin/traefik-cluster-ratelimit
 
-go 1.22.5
+go 1.19
 
 require github.com/stretchr/testify v1.9.0
 
