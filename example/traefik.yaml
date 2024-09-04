@@ -19,7 +19,7 @@ api:
 
 # Log settings
 log:
-  level: DEBUG
+  level: INFO # DEBUG
   format: json # or common
   filePath: ""
   # filePath: "/path/to/traefik.log"  # Set to desired log file path

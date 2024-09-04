@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	redis "github.com/nzin/traefik-cluster-ratelimit/redis"
@@ -15,8 +16,9 @@ type Config struct {
 	RedisAddress  string `json:"redisaddress"`
 	RedisDB       uint   `json:"redisdb"`
 	RedisPassword string `json:"redispassword"`
-	Average       uint   `json:"average"`
-	Burst         uint   `json:"burst"`
+	Average       int    `json:"average"`
+	Burst         int    `json:"burst"`
+	Period        int    `json:"period"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -29,8 +31,9 @@ type ClusterRateLimit struct {
 	next    http.Handler
 	limiter *Limiter
 	name    string
-	Average uint
-	Burst   uint
+	Average int
+	Burst   int
+	Period  int
 }
 
 // New created a new Demo plugin.
@@ -38,6 +41,22 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 	if config.RedisAddress == "" {
 		config.RedisAddress = "redis:6379"
 	}
+	if config.Average < 1 {
+		return nil, fmt.Errorf("average must be >=1")
+	}
+	if config.Burst < 1 {
+		return nil, fmt.Errorf("burst must be >=1")
+	}
+	if config.Period < 1 {
+		return nil, fmt.Errorf("period must be >=1")
+	}
+
+	// if the redis password starts with '$' like $REDIS_PASSWORD
+	// we read it from the environment variable
+	if config.RedisPassword[0] == '$' {
+		config.RedisPassword = os.Getenv(config.RedisPassword[1:])
+	}
+
 	client, err := redis.NewClient(
 		config.RedisAddress,
 		config.RedisDB,
@@ -58,6 +77,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		name:    name,
 		Average: config.Average,
 		Burst:   config.Burst,
+		Period:  config.Period,
 	}, nil
 }
 
@@ -65,9 +85,9 @@ func (rl *ClusterRateLimit) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 	// cf https://medium.com/@bingolbalihasan/redis-rate-limiting-in-go-d342bab3d930
 
 	res, err := rl.limiter.Allow(extractHostname(req), Limit{
-		Rate:   int(rl.Average),
-		Burst:  int(rl.Burst),
-		Period: time.Second,
+		Rate:   rl.Average,
+		Burst:  rl.Burst,
+		Period: time.Duration(rl.Period) * time.Second,
 	})
 	if err != nil {
 		rl.next.ServeHTTP(rw, req)

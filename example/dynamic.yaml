@@ -3,28 +3,22 @@
 http:
   routers:
     my-router:
-      #rule: "Host(`example.com`)"
       rule: "Host(`localhost`)"
       entryPoints:
         - web
       middlewares:
-        - set-host-header  # Apply the middleware to modify the Host header
         - cluster-ratelimit
-      service: elanprod
+      service: target
 
   middlewares:
-    set-host-header:
-      headers:
-        customRequestHeaders:
-          Host: "elanprod.com"  # Force the Host header to a specific value
     cluster-ratelimit:
       plugin:
         cluster-ratelimit:
-          average: 100
-          burst: 200
+          average: 50
+          burst: 100
 
   services:
-    elanprod:
+    target:
       loadBalancer:
         servers:
-          - url: "https://elanprod.com"
+          - url: http://target
