@@ -1,12 +1,11 @@
-package traefik_cluster_ratelimit
+package utils
 
 import (
 	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/nzin/traefik-cluster-ratelimit/ip"
-	"github.com/nzin/traefik-cluster-ratelimit/utils"
+	"github.com/nzin/traefik-cluster-ratelimit/internal/ip"
 )
 
 // IPStrategy holds the IP strategy configuration used by Traefik to determine the client IP.
@@ -58,7 +57,7 @@ type SourceCriterion struct {
 // GetSourceExtractor returns the SourceExtractor function corresponding to the given sourceMatcher.
 // It defaults to a RemoteAddrStrategy IPStrategy if need be.
 // It returns an error if more than one source criterion is provided.
-func GetSourceExtractor(sourceMatcher *SourceCriterion) (utils.SourceExtractor, error) {
+func GetSourceExtractor(sourceMatcher *SourceCriterion) (SourceExtractor, error) {
 	if sourceMatcher != nil {
 		if sourceMatcher.IPStrategy != nil && sourceMatcher.RequestHeaderName != "" {
 			return nil, errors.New("iPStrategy and RequestHeaderName are mutually exclusive")
@@ -87,19 +86,19 @@ func GetSourceExtractor(sourceMatcher *SourceCriterion) (utils.SourceExtractor, 
 		}
 
 		//		logger.Debug().Msg("Using IPStrategy")
-		return utils.ExtractorFunc(func(req *http.Request) (string, int64, error) {
+		return ExtractorFunc(func(req *http.Request) (string, int64, error) {
 			return strategy.GetIP(req), 1, nil
 		}), nil
 	}
 
 	if sourceMatcher.RequestHeaderName != "" {
 		//logger.Debug().Msg("Using RequestHeaderName")
-		return utils.NewExtractor(fmt.Sprintf("request.header.%s", sourceMatcher.RequestHeaderName))
+		return NewExtractor(fmt.Sprintf("request.header.%s", sourceMatcher.RequestHeaderName))
 	}
 
 	if sourceMatcher.RequestHost {
 		//logger.Debug().Msg("Using RequestHost")
-		return utils.NewExtractor("request.host")
+		return NewExtractor("request.host")
 	}
 
 	return nil, errors.New("no SourceCriterion criterion defined")

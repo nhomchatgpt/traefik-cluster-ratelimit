@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	redis "github.com/nzin/traefik-cluster-ratelimit/redis"
-	"github.com/nzin/traefik-cluster-ratelimit/utils"
+	"github.com/nzin/traefik-cluster-ratelimit/internal/redis"
+	"github.com/nzin/traefik-cluster-ratelimit/internal/utils"
 )
 
 // Config the plugin configuration.
@@ -38,7 +38,7 @@ type Config struct {
 	// SourceCriterion defines what criterion is used to group requests as originating from a common source.
 	// If several strategies are defined at the same time, an error will be raised.
 	// If none are set, the default is to use the request's remote address field (as an ipStrategy).
-	SourceCriterion *SourceCriterion `json:"sourceCriterion,omitempty" yaml:"sourceCriterion,omitempty"`
+	SourceCriterion *utils.SourceCriterion `json:"sourceCriterion,omitempty" yaml:"sourceCriterion,omitempty"`
 	// BreakerThreshold is how many consecutive time a redis connection is failing before we
 	// stop talking to it (default is 3)
 	BreakerThreshold int64 `json:"breakerThreshold,omitempty" yaml:"breakerThreshold,omitempty"`
@@ -90,7 +90,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		config.RedisPassword = os.Getenv(config.RedisPassword[1:])
 	}
 
-	sourceMatcher, err := GetSourceExtractor(config.SourceCriterion)
+	sourceMatcher, err := utils.GetSourceExtractor(config.SourceCriterion)
 	if err != nil {
 		return nil, err
 	}
