@@ -21,11 +21,11 @@ local burst_offset = emission_interval * burst
 -- convert them to a floating point number. the resulting number is 16 digits,
 -- bordering on the limits of a 64-bit double-precision floating point number.
 -- adjust the epoch to be relative to Jan 1, 2017 00:00:00 GMT to avoid floating
--- point problems. this approach is good until "now" is 2,483,228,799 (Wed, 09
--- Sep 2048 01:46:39 GMT), when the adjusted value is 16 digits.
-local jan_1_2017 = 1483228800
+-- point problems. this approach is good until "now" is 2704085199 (Thu Sep 09 2055
+-- 06:46:39 GMT), when the adjusted value is 16 digits.
+local jan_1_2024 = 1704085200
 local now = redis.call("TIME")
-now = (now[1] - jan_1_2017) + (now[2] / 1000000)
+now = (now[1] - jan_1_2024) + (now[2] / 1000000)
 
 local tat = redis.call("GET", rate_limit_key)
 
@@ -80,11 +80,11 @@ local burst_offset = emission_interval * burst
 -- convert them to a floating point number. the resulting number is 16 digits,
 -- bordering on the limits of a 64-bit double-precision floating point number.
 -- adjust the epoch to be relative to Jan 1, 2017 00:00:00 GMT to avoid floating
--- point problems. this approach is good until "now" is 2,483,228,799 (Wed, 09
--- Sep 2048 01:46:39 GMT), when the adjusted value is 16 digits.
-local jan_1_2017 = 1483228800
+-- point problems. this approach is good until "now" is 2704085199 (Thu Sep 09 2055
+-- 06:46:39 GMT), when the adjusted value is 16 digits.
+local jan_1_2024 = 1704085200
 local now = redis.call("TIME")
-now = (now[1] - jan_1_2017) + (now[2] / 1000000)
+now = (now[1] - jan_1_2024) + (now[2] / 1000000)
 
 local tat = redis.call("GET", rate_limit_key)
 

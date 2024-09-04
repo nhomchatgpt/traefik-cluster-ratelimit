@@ -6,16 +6,20 @@ import (
 )
 
 type ScriptWithBreaker struct {
-	script      Script
-	errorCount  int
-	nextAttempt time.Time
+	script           Script
+	errorCount       int64
+	nextAttempt      time.Time
+	breakerThreshold int64
+	reattemptPeriod  int64
 }
 
-func NewScriptWithBreaker(script Script) Script {
+func NewScriptWithBreaker(script Script, breakerThreshold int64, reattemptPeriod int64) Script {
 	return &ScriptWithBreaker{
-		script:      script,
-		errorCount:  0,
-		nextAttempt: time.Now(),
+		script:           script,
+		errorCount:       0,
+		nextAttempt:      time.Now(),
+		breakerThreshold: breakerThreshold,
+		reattemptPeriod:  reattemptPeriod,
 	}
 }
 
@@ -25,8 +29,8 @@ func (swb *ScriptWithBreaker) Run(keys []string, args ...interface{}) (interface
 
 		if err != nil {
 			swb.errorCount++
-			if swb.errorCount == 3 {
-				swb.nextAttempt = time.Now().Add(15 * time.Second)
+			if swb.errorCount == swb.breakerThreshold {
+				swb.nextAttempt = time.Now().Add(time.Duration(swb.reattemptPeriod) * time.Second)
 			}
 		} else {
 			swb.errorCount = 0

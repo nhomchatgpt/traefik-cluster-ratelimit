@@ -12,8 +12,8 @@ import (
 // coming from github.com/go-redis/redis_rate/v10
 
 type Limit struct {
-	Rate   int
-	Burst  int
+	Rate   int64
+	Burst  int64
 	Period time.Duration
 }
 
@@ -37,7 +37,7 @@ func fmtDur(d time.Duration) string {
 	return d.String()
 }
 
-func PerSecond(rate int) Limit {
+func PerSecond(rate int64) Limit {
 	return Limit{
 		Rate:   rate,
 		Period: time.Second,
@@ -45,7 +45,7 @@ func PerSecond(rate int) Limit {
 	}
 }
 
-func PerMinute(rate int) Limit {
+func PerMinute(rate int64) Limit {
 	return Limit{
 		Rate:   rate,
 		Period: time.Minute,
@@ -53,7 +53,7 @@ func PerMinute(rate int) Limit {
 	}
 }
 
-func PerHour(rate int) Limit {
+func PerHour(rate int64) Limit {
 	return Limit{
 		Rate:   rate,
 		Period: time.Hour,
@@ -72,11 +72,11 @@ type Limiter struct {
 }
 
 // NewLimiter returns a new Limiter.
-func NewLimiter(rdb redis.Client, prefix string) *Limiter {
+func NewLimiter(rdb redis.Client, prefix string, breakerThreshold, breakerReattempt int64) *Limiter {
 	return &Limiter{
 		rdb:         rdb,
-		allowN:      redis.NewScriptWithBreaker(rdb.NewScript(allowNLua)),
-		allowAtMost: redis.NewScriptWithBreaker(rdb.NewScript(allowAtMostLua)),
+		allowN:      redis.NewScriptWithBreaker(rdb.NewScript(allowNLua), breakerThreshold, breakerReattempt),
+		allowAtMost: redis.NewScriptWithBreaker(rdb.NewScript(allowAtMostLua), breakerThreshold, breakerReattempt),
 		redisPrefix: "rate_" + prefix,
 	}
 }
