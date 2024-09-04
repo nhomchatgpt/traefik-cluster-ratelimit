@@ -8,9 +8,9 @@ This plugin is here to solve this issue: using a Redis as a common state, this p
 
 You need to setup the static and dynamic configuration
 
-The following declaration (given here in YAML) defines a plugin:
+The following declaration (given here in YAML) defines the plugin:
 
-```
+```yml
 # Static configuration
 
 experimental:
@@ -22,7 +22,7 @@ experimental:
 
 Here is an example of a file provider dynamic configuration (given here in YAML), where the interesting part is the http.middlewares section:
 
-```
+```yml
 # Dynamic configuration
 
 http:
@@ -51,7 +51,7 @@ http:
 
 With a kubernetesingress provider:
 
-```
+```yml
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -110,7 +110,7 @@ Notes:
 
 A full example would be
 
-```
+```yml
 # Dynamic configuration
 
 http:
@@ -140,7 +140,7 @@ As mentionned above there are 2 variables you can use to change the default beha
 ## Benchmark
 
 You can test traefik with the rate limiter with some tools. For example with vegeta (you probably need to install it):
-```
+```sh
 docker-compose up -d
 
 echo "GET http://localhost:8000/" | vegeta attack -duration=5s -rate=200 | tee results.bin | vegeta report
