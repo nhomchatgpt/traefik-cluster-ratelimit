@@ -92,26 +92,50 @@ The `average` and the `burst` are the number of allowed connection per second, t
 | period                      | the period (in seconds) of the rate limiter window | 1          |
 | average                     | allowed requests per "period" ( 0 = unlimited)     |            |
 | burst                       | allowed burst requests per "period"                |            |
-| redisaddress                | address of the redis server                        | redis:6379 |
-| redisdb                     | redis db to use                                    | 0          |
-| redispassword               | redis authentication (if any)                      |            |
+| redisAddress                | address of the redis server                        | redis:6379 |
+| redisDb                     | redis db to use                                    | 0          |
+| redisPassword               | redis authentication (if any)                      |            |
 | sourceCriterion.*           | defines what criterion is used to group requests. See next | ipStrategy |
 | sourceCriterion.ipStrategy  | client IP based source                             |            |
 | sourceCriterion.ipStrategy.depth | tells Traefik to use the X-Forwarded-For header and select the IP located at the depth position |    |
 | sourceCriterion.ipStrategy.excludedIPs | list of X-Forwarded-For IPs that are to be excluded | |
 | sourceCriterion.requestHost | based source on request host                       |            |
 | sourceCriterion.requestHeaderName | Name of the header used to group incoming requests|       |
-| breakerthreshold            | number of failed connection before pausing Redis   | 3          |
-| breakerreattempt            | nb seconds before attempting to reconnect to Redis | 15         |
+| breakerThreshold            | number of failed connection before pausing Redis   | 3          |
+| breakerReattempt            | nb seconds before attempting to reconnect to Redis | 15         |
 
 Notes:
 - for more information about sourceCriteron check the Traefik [ratelimit](https://doc.traefik.io/traefik/middlewares/http/ratelimit/) page
 - regarding redispassword, if you dont want to set it in clear text in the traefik configuration, you can specify a variable name starting with '$'. For example `$REDIS_PASSWORD` will use the `REDIS_PASSWORD` environment variable
 
+A full example would be
+
+```
+# Dynamic configuration
+
+http:
+  ...
+  middlewares:
+    my-middleware:
+      plugin:
+        clusterRatelimit:
+          average: 5
+          burst: 10
+          period: 10
+          sourceCriterion:
+            ipStrategy:
+              depth: 2
+              excludedIPs:
+              - 127.0.0.1/32
+              - 192.168.1.7          
+          redisaddress: redis:6379
+          redispassword: $REDIS_AUTH_PASSWORD
+```
+
 ## Circuit-breaker
 
 If the Redis server is not available, we will stop talking to it, and let pass through.
-There are 2 environment variables you can use to change the default behaviour
+As mentionned above there are 2 variables you can use to change the default behaviour: `breakerThreshold` and `breakerReattempt`. Usually you dont need to tweak that.
 
 ## Benchmark
 

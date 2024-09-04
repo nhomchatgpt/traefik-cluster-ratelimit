@@ -14,8 +14,9 @@ http:
     cluster-ratelimit:
       plugin:
         cluster-ratelimit:
-          average: 50
-          burst: 100
+          average: 5
+          burst: 10
+          period: 10
 
   services:
     target:

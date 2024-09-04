@@ -15,36 +15,36 @@ import (
 type Config struct {
 	// RedisAddress is the address of the redis server, as "host:port"
 	// the default is "redis:6379"
-	RedisAddress string `json:"redisaddress,omitempty"`
+	RedisAddress string `json:"redisAddress,omitempty" yaml:"redisAddress,omitempty"`
 	// if needed you can choose the redis db. By default we use the first (aka '0') db
-	RedisDB uint `json:"redisdb,omitempty"`
+	RedisDB uint `json:"redisDb,omitempty" yaml:"redisDb,omitempty"`
 	// RedisPassword holds the password used to AUTH against a redis server, if it
 	// is protected by a AUTH
 	// if you dont want to put the password in clear text in the config definition
 	// you can use an environment variable, and put the name of the env variable here
 	// prefixed with '$'. For example '$REDIS_AUTH_PASSWORD'
-	RedisPassword string `json:"redispassword,omitempty"`
+	RedisPassword string `json:"redisPassword,omitempty" yaml:"redisPassword,omitempty"`
 	// Average is the maximum rate, by default in requests/s, allowed for the given source.
 	// It defaults to 0, which means no rate limiting.
 	// The rate is actually defined by dividing Average by Period. So for a rate below 1req/s,
 	// one needs to define a Period larger than a second.
-	Average int64 `json:"average"`
+	Average int64 `json:"average" yaml:"average"`
 	// Burst is the maximum number of requests allowed to arrive in the same arbitrarily small period of time.
 	// It defaults to 1.
-	Burst int64 `json:"burst"`
+	Burst int64 `json:"burst" yaml:"burst"`
 	// Period, in combination with Average, defines the actual maximum rate, such as:
 	// r = Average / Period. It defaults to a second.
-	Period int64 `json:"period,omitempty"`
+	Period int64 `json:"period,omitempty" yaml:"period,omitempty"`
 	// SourceCriterion defines what criterion is used to group requests as originating from a common source.
 	// If several strategies are defined at the same time, an error will be raised.
 	// If none are set, the default is to use the request's remote address field (as an ipStrategy).
-	SourceCriterion *SourceCriterion `json:"sourceCriterion,omitempty"`
+	SourceCriterion *SourceCriterion `json:"sourceCriterion,omitempty" yaml:"sourceCriterion,omitempty"`
 	// BreakerThreshold is how many consecutive time a redis connection is failing before we
 	// stop talking to it (default is 3)
-	BreakerThreshold int64 `json:"breakerthreshold,omitempty"`
+	BreakerThreshold int64 `json:"breakerThreshold,omitempty" yaml:"breakerThreshold,omitempty"`
 	// BreakerReattempt is the number of seconds to wait (after stopping to Redis) before
 	// trying to talk again to Redis (default is 15)
-	BreakerReattempt int64 `json:"breakerreattempt,omitempty"`
+	BreakerReattempt int64 `json:"breakerReattempt,omitempty" yaml:"breakerReattempt,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
