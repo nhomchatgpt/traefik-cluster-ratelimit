@@ -1,4 +1,4 @@
-# traefik-redis-rate-limit
+# traefik-cluster-ratelimit
 
 Traefik comes with a default [rate limiter](https://doc.traefik.io/traefik/middlewares/http/ratelimit/) middleware, but the rate limiter doesn't share a state if you are using several instance of Traefik (think kubernetes HA deployment for example).
 
