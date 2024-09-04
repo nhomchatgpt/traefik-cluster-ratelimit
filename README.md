@@ -128,8 +128,8 @@ http:
               excludedIPs:
               - 127.0.0.1/32
               - 192.168.1.7          
-          redisaddress: redis:6379
-          redispassword: $REDIS_AUTH_PASSWORD
+          redisAddress: redis:6379
+          redisPassword: $REDIS_AUTH_PASSWORD
 ```
 
 ## Circuit-breaker
