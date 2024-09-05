@@ -103,6 +103,7 @@ The `average` and the `burst` are the number of allowed connection per second, t
 | sourceCriterion.requestHeaderName | Name of the header used to group incoming requests|       |
 | breakerThreshold            | number of failed connection before pausing Redis   | 3          |
 | breakerReattempt            | nb seconds before attempting to reconnect to Redis | 15         |
+| redisConnectionTimeout      | redis connection timeout (in seconds)              | 2          |
 
 Notes:
 - for more information about sourceCriteron check the Traefik [ratelimit](https://doc.traefik.io/traefik/middlewares/http/ratelimit/) page
@@ -130,6 +131,7 @@ http:
               - 192.168.1.7          
           redisAddress: redis:6379
           redisPassword: $REDIS_AUTH_PASSWORD
+          redisConnectionTimeout: 2
 ```
 
 ## Circuit-breaker

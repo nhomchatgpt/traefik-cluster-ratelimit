@@ -45,6 +45,9 @@ type Config struct {
 	// BreakerReattempt is the number of seconds to wait (after stopping to Redis) before
 	// trying to talk again to Redis (default is 15)
 	BreakerReattempt int64 `json:"breakerReattempt,omitempty" yaml:"breakerReattempt,omitempty"`
+	// ConnectionTimeout is the read and write connection timeout to redis.
+	// By default it is 2 seconds
+	RedisConnectionTimeout int64 `json:"redisConnectionTimeout,omitempty" yaml:"redisConnectionTimeout,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -83,6 +86,9 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 	if config.BreakerReattempt < 1 {
 		config.BreakerReattempt = 15
 	}
+	if config.RedisConnectionTimeout < 1 {
+		config.RedisConnectionTimeout = 2
+	}
 
 	// if the redis password starts with '$' like $REDIS_PASSWORD
 	// we read it from the environment variable
@@ -99,6 +105,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		config.RedisAddress,
 		config.RedisDB,
 		config.RedisPassword,
+		time.Duration(config.RedisConnectionTimeout)*time.Second,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create redis client: %v", err)

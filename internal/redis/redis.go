@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
+// minimum redis connection pool size
 const MAX_ACTIVE = 5
-const DIAL_TIMEOUT = 3 * time.Second
 
 type Client interface {
 	Close()
@@ -22,30 +22,31 @@ type Client interface {
 }
 
 type ClientImpl struct {
-	mu          sync.Mutex
-	conns       chan net.Conn
-	addr        string
-	maxActive   int
-	dialTimeout time.Duration
-	auth        string
-	db          int
+	mu                sync.Mutex
+	conns             chan net.Conn
+	addr              string
+	maxActive         int
+	dialTimeout       time.Duration
+	auth              string
+	db                int
+	connectionTimeout time.Duration
 }
 
 // NewClient initializes a new redis cleint with connection pool
-func NewClient(addr string, db uint, authpassword string) (Client, error) {
+func NewClient(addr string, db uint, authpassword string, connectionTimeout time.Duration) (Client, error) {
 	maxActive := MAX_ACTIVE
-	dialTimeout := DIAL_TIMEOUT
 
 	if maxActive <= 0 {
 		return nil, errors.New("maxActive must be greater than 0")
 	}
 
 	r := &ClientImpl{
-		conns:       make(chan net.Conn, maxActive),
-		addr:        addr,
-		maxActive:   maxActive,
-		dialTimeout: dialTimeout,
-		auth:        authpassword,
+		conns:             make(chan net.Conn, maxActive),
+		addr:              addr,
+		maxActive:         maxActive,
+		dialTimeout:       connectionTimeout * 2,
+		auth:              authpassword,
+		connectionTimeout: connectionTimeout,
 	}
 
 	// Prepopulate the pool with connections
@@ -65,7 +66,7 @@ func (r *ClientImpl) newConn() (net.Conn, error) {
 		return nil, err
 	}
 	if r.auth != "" {
-		resp, err := sendCommand(conn, "AUTH", r.auth)
+		resp, err := sendCommand(conn, r.connectionTimeout, "AUTH", r.auth)
 		if err != nil {
 			return nil, err
 		}
@@ -73,7 +74,7 @@ func (r *ClientImpl) newConn() (net.Conn, error) {
 			return nil, fmt.Errorf("not able to authenticate (%s)", resp.Result)
 		}
 	}
-	resp, err := sendCommand(conn, "SELECT", fmt.Sprintf("%d", r.db))
+	resp, err := sendCommand(conn, r.connectionTimeout, "SELECT", fmt.Sprintf("%d", r.db))
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +140,7 @@ type RedisResult struct {
 }
 
 // sendCommand sends a command to Redis and returns the response.
-func sendCommand(conn net.Conn, args ...string) (*RedisResult, error) {
+func sendCommand(conn net.Conn, connectionTimeout time.Duration, args ...string) (*RedisResult, error) {
 	// Construct the RESP command
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("*%d\r\n", len(args))) // Array prefix
@@ -148,6 +149,9 @@ func sendCommand(conn net.Conn, args ...string) (*RedisResult, error) {
 	}
 	command := sb.String()
 
+	// set read and write deadline
+	conn.SetDeadline(time.Now().Add(connectionTimeout))
+
 	// Send the command
 	_, err := conn.Write([]byte(command))
 	if err != nil {
@@ -155,7 +159,6 @@ func sendCommand(conn net.Conn, args ...string) (*RedisResult, error) {
 	}
 
 	// Read the response
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	reader := bufio.NewReader(conn)
 
 	elt, err := readElement(reader)
@@ -297,7 +300,7 @@ func (r *ClientImpl) Ping() error {
 	}
 	defer r.put(conn)
 
-	res, err := sendCommand(*conn, "PING")
+	res, err := sendCommand(*conn, r.connectionTimeout, "PING")
 	if err != nil {
 		// let's reset the conn
 		(*conn).Close()
@@ -318,7 +321,7 @@ func (r *ClientImpl) Del(key string) error {
 	}
 	defer r.put(conn)
 
-	res, err := sendCommand(*conn, "DEL", key)
+	res, err := sendCommand(*conn, r.connectionTimeout, "DEL", key)
 	if err != nil {
 		// let's reset the conn
 		(*conn).Close()
