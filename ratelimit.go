@@ -152,6 +152,8 @@ func (rl *ClusterRateLimit) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		rl.next.ServeHTTP(rw, req)
 	} else {
 		if res.Allowed <= 0 {
+			retryAfter := int64(res.RetryAfter/time.Second) + 1
+			rw.Header().Set("retry-after", fmt.Sprintf("%d", retryAfter))
 			http.Error(rw, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 			return
 		}

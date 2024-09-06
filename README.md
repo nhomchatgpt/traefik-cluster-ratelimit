@@ -17,7 +17,7 @@ experimental:
   plugins:
     clusterRatelimit:
       moduleName: "github.com/nzin/traefik-cluster-ratelimit"
-      version: "v1.0.4"
+      version: "v1.0.5"
 ```
 
 Here is an example of a file provider dynamic configuration (given here in YAML), where the interesting part is the http.middlewares section:
