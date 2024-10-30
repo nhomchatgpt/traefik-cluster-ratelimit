@@ -44,11 +44,11 @@ func (rs *ScriptImpl) Run(keys []string, args ...interface{}) (interface{}, erro
 
 	present := false
 	if rs.scriptSha != "" {
-		res, err := sendCommand(*conn, rs.client.connectionTimeout, params...)
+		res, err := sendCommand(conn, rs.client.connectionTimeout, params...)
 		if err != nil {
 			// let's reset the conn
-			(*conn).Close()
-			(*conn) = nil
+			conn.Close()
+			conn = nil
 			return "", err
 		}
 		if res.Success == RESP_SUCCESS_WITH_RESULT {
@@ -66,11 +66,11 @@ func (rs *ScriptImpl) Run(keys []string, args ...interface{}) (interface{}, erro
 
 	// the script was not present, let's load it and runs it
 	if !present {
-		res, err := sendCommand(*conn, rs.client.connectionTimeout, "SCRIPT", "LOAD", rs.script)
+		res, err := sendCommand(conn, rs.client.connectionTimeout, "SCRIPT", "LOAD", rs.script)
 		if err != nil {
 			// let's reset the conn
-			(*conn).Close()
-			(*conn) = nil
+			conn.Close()
+			conn = nil
 			return "", err
 		}
 		// sha
@@ -87,11 +87,11 @@ func (rs *ScriptImpl) Run(keys []string, args ...interface{}) (interface{}, erro
 	params = append(params, argsarray...)
 
 	// run the script
-	res, err := sendCommand(*conn, rs.client.connectionTimeout, params...)
+	res, err := sendCommand(conn, rs.client.connectionTimeout, params...)
 	if err != nil {
 		// let's reset the conn
-		(*conn).Close()
-		(*conn) = nil
+		conn.Close()
+		conn = nil
 		return "", err
 	}
 	if res.Success == RESP_SUCCESS_WITH_RESULT {
