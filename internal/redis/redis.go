@@ -162,6 +162,9 @@ func sendCommand(conn net.Conn, connectionTimeout time.Duration, args ...string)
 	reader := bufio.NewReader(conn)
 
 	elt, err := readElement(reader)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response: %w", err)
+	}
 	if elt.ElementType == ELEMENT_SIMPLE {
 		return &RedisResult{
 			Success: RESP_SUCCESS,
