@@ -55,7 +55,6 @@ func CreateConfig() *Config {
 	return &Config{}
 }
 
-// Demo a Demo plugin.
 type ClusterRateLimit struct {
 	next          http.Handler
 	limiter       *Limiter
@@ -66,7 +65,7 @@ type ClusterRateLimit struct {
 	sourceMatcher utils.SourceExtractor
 }
 
-// New created a new Demo plugin.
+// New created a new ClusterRateLimit plugin.
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	if config.RedisAddress == "" {
 		config.RedisAddress = "redis:6379"
@@ -81,7 +80,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		config.Period = 1
 	}
 	if config.BreakerThreshold < 1 {
-		config.BreakerReattempt = 3
+		config.BreakerThreshold = 3
 	}
 	if config.BreakerReattempt < 1 {
 		config.BreakerReattempt = 15
